@@ -54,6 +54,19 @@ Download or clone imagine.h and include it in your project.
 
 int main() {
 
+    #define BUF_SIZE 128 * 128
+    unsigned char pixels[BUF_SIZE];
+
+    /* Create a new imagine instance with a pixel buffer large enough to store the image data */
+    imagine img = {0};
+    img.pixels = pixels;
+    img.pixels_capacity = BUF_SIZE;
+
+    /* Load the image from the user provided image file binary and the size of the binary */
+    if (!imagine_load(&img, binary_buffer, binary_buffer_size)) {
+      return 1;
+    }
+
     return 0;
 }
 ```
