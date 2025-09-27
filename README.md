@@ -28,6 +28,23 @@ For more information please look at the "imagine.h" file or take a look at the "
 - **Cross-platform** — Windows, Linux, MacOs 
 - **Strict compilation** — built with aggressive warnings & safety checks  
 
+## Supported Image Formats
+
+| Family   | Format | Extension(s) | ASCII / Binary | Color Types Supported |
+|----------|--------|--------------|----------------|-----------------------|
+| Netpbm   | P1     | `.pbm`       | ASCII          | 1-bit monochrome      |
+| Netpbm   | P2     | `.pgm`       | ASCII          | Grayscale (8-bit, scaled to 255) |
+| Netpbm   | P3     | `.ppm`       | ASCII          | RGB (8-bit, scaled to 255) |
+| Netpbm   | P4     | `.pbm`       | Binary         | 1-bit monochrome      |
+| Netpbm   | P5     | `.pgm`       | Binary         | Grayscale (8-bit, scaled to 255) |
+| Netpbm   | P6     | `.ppm`       | Binary         | RGB (8-bit, scaled to 255) |
+| Netpbm   | P7     | `.pam`       | Binary         | RGB, Grayscale (limited support, no alpha yet) |
+| BMP      | v3     | `.bmp`       | Binary         | Grayscale, RGB (24-bit), RGBA (32-bit, alpha ignored) |
+| TGA      | v1     | `.tga`       | Binary         | Grayscale (8-bit), RGB (24-bit), RGBA (32-bit, alpha ignored) |
+| PCX      | ZSoft  | `.pcx`       | Binary         | Grayscale (8-bit), RGB (24-bit) |
+| ICO      | Win32  | `.ico`       | Binary         | BMP-based icons only (PNG-in-ICO unsupported) |
+| DDS      | DirectDraw | `.dds`   | Binary         | RGB (24-bit), RGBA (32-bit, alpha ignored), Grayscale (8-bit) |
+
 ## Quick Start
 
 Download or clone imagine.h and include it in your project.
