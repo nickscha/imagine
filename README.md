@@ -39,7 +39,7 @@ For more information please look at the "imagine.h" file or take a look at the "
 | Netpbm   | P5     | `.pgm`       | Binary         | Grayscale (8-bit, scaled to 255) |
 | Netpbm   | P6     | `.ppm`       | Binary         | RGB (8-bit, scaled to 255) |
 | Netpbm   | P7     | `.pam`       | Binary         | RGB, Grayscale (limited support, no alpha yet) |
-| BMP      | v3     | `.bmp`       | Binary         | Grayscale, RGB (24-bit), RGBA (32-bit, alpha ignored) |
+| BMP      | v3     | `.bmp`       | Binary         | Monochrome (1-bit), Indexed (4/8-bit palette), RGB (16/24-bit), RGBA (32-bit) |
 | TGA      | v1     | `.tga`       | Binary         | Grayscale (8-bit), RGB (24-bit), RGBA (32-bit, alpha ignored) |
 | PCX      | ZSoft  | `.pcx`       | Binary         | Grayscale (8-bit), RGB (24-bit) |
 | ICO      | Win32  | `.ico`       | Binary         | BMP-based icons only (PNG-in-ICO unsupported) |
