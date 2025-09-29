@@ -403,7 +403,7 @@ IMAGINE_API int imagine_load_bmp(imagine *img, unsigned char *buffer, unsigned i
     {
       for (x = 0; x < width; x++)
       {
-        unsigned short px = row[x * 2] | (row[x * 2 + 1] << 8);
+        unsigned short px = (unsigned short)(row[x * 2] | (row[x * 2 + 1] << 8));
 
         r = (px >> 10) & 0x1F;
         g = (px >> 5) & 0x1F;
