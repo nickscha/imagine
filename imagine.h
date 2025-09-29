@@ -117,8 +117,11 @@ IMAGINE_API int imagine_load_netpbm(imagine *img, unsigned char *buffer, unsigne
   if (fmt != '1' && fmt != '4')
   {
     p = imagine_ppm_parse_uint(p, end, &maxval);
+
     if (maxval == 0)
+    {
       return 0;
+    }
   }
 
   img->width = w;
@@ -149,10 +152,13 @@ IMAGINE_API int imagine_load_netpbm(imagine *img, unsigned char *buffer, unsigne
   {
     unsigned int x, y;
     unsigned int rowbytes = (w + 7) / 8;
+
     p = imagine_ppm_skip(p, end); /* move to pixel data */
 
     if ((unsigned int)(end - p) < rowbytes * h)
+    {
       return 0; /* not enough data */
+    }
 
     for (y = 0; y < h; ++y)
     {
@@ -161,6 +167,7 @@ IMAGINE_API int imagine_load_netpbm(imagine *img, unsigned char *buffer, unsigne
       {
         unsigned int byte = row[x >> 3];
         unsigned int bit = (byte >> (7 - (x & 7))) & 1;
+
         img->pixels[y * w + x] = (unsigned char)(bit ? 0 : 255);
       }
     }
@@ -183,8 +190,12 @@ IMAGINE_API int imagine_load_netpbm(imagine *img, unsigned char *buffer, unsigne
     for (i = 0; i < n; ++i)
     {
       if (p >= end)
+      {
         return 0;
+      }
+
       v = *p++;
+
       img->pixels[i] = (unsigned char)((255U * v) / maxval);
     }
   }
@@ -194,9 +205,11 @@ IMAGINE_API int imagine_load_netpbm(imagine *img, unsigned char *buffer, unsigne
     for (i = 0; i < n; ++i)
     {
       unsigned int r, g, b;
+
       p = imagine_ppm_parse_uint(p, end, &r);
       p = imagine_ppm_parse_uint(p, end, &g);
       p = imagine_ppm_parse_uint(p, end, &b);
+
       img->pixels[i * 3 + 0] = (unsigned char)((255U * r) / maxval);
       img->pixels[i * 3 + 1] = (unsigned char)((255U * g) / maxval);
       img->pixels[i * 3 + 2] = (unsigned char)((255U * b) / maxval);
@@ -206,13 +219,18 @@ IMAGINE_API int imagine_load_netpbm(imagine *img, unsigned char *buffer, unsigne
   else if (fmt == '6')
   {
     p = imagine_ppm_skip(p, end);
+
     for (i = 0; i < n; ++i)
     {
       if (p + 3 > end)
+      {
         return 0;
+      }
+
       img->pixels[i * 3 + 0] = (unsigned char)((255U * p[0]) / maxval);
       img->pixels[i * 3 + 1] = (unsigned char)((255U * p[1]) / maxval);
       img->pixels[i * 3 + 2] = (unsigned char)((255U * p[2]) / maxval);
+
       p += 3;
     }
   }
@@ -328,7 +346,7 @@ IMAGINE_API int imagine_load_bmp(imagine *img, unsigned char *buffer, unsigned i
   rowSize = ((width * bitCount + 31) / 32) * 4;
 
   /* BMP stores bottom-up */
-  for (y = 0; y < height; y++)
+  for (y = 0; y < height; ++y)
   {
     unsigned char *row = p + (height - 1 - y) * rowSize;
 
@@ -339,7 +357,7 @@ IMAGINE_API int imagine_load_bmp(imagine *img, unsigned char *buffer, unsigned i
 
     if (bitCount == 1)
     {
-      for (x = 0; x < width; x++)
+      for (x = 0; x < width; ++x)
       {
         unsigned int byteIndex = x >> 3;
         unsigned int bitIndex = 7 - (x & 7);
@@ -356,7 +374,7 @@ IMAGINE_API int imagine_load_bmp(imagine *img, unsigned char *buffer, unsigned i
     }
     else if (bitCount == 4)
     {
-      for (x = 0; x < width; x++)
+      for (x = 0; x < width; ++x)
       {
         unsigned int byteIndex = x >> 1;
         unsigned char idx;
@@ -381,7 +399,7 @@ IMAGINE_API int imagine_load_bmp(imagine *img, unsigned char *buffer, unsigned i
     }
     else if (bitCount == 8)
     {
-      for (x = 0; x < width; x++)
+      for (x = 0; x < width; ++x)
       {
         unsigned char idx = row[x];
 
@@ -401,7 +419,7 @@ IMAGINE_API int imagine_load_bmp(imagine *img, unsigned char *buffer, unsigned i
     }
     else if (bitCount == 16)
     {
-      for (x = 0; x < width; x++)
+      for (x = 0; x < width; ++x)
       {
         unsigned short px = (unsigned short)(row[x * 2] | (row[x * 2 + 1] << 8));
 
@@ -419,7 +437,7 @@ IMAGINE_API int imagine_load_bmp(imagine *img, unsigned char *buffer, unsigned i
     }
     else if (bitCount == 24)
     {
-      for (x = 0; x < width; x++)
+      for (x = 0; x < width; ++x)
       {
         b = row[x * 3 + 0];
         g = row[x * 3 + 1];
@@ -432,7 +450,7 @@ IMAGINE_API int imagine_load_bmp(imagine *img, unsigned char *buffer, unsigned i
     }
     else if (bitCount == 32)
     {
-      for (x = 0; x < width; x++)
+      for (x = 0; x < width; ++x)
       {
         b = row[x * 4 + 0];
         g = row[x * 4 + 1];
