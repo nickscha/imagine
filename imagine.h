@@ -114,15 +114,11 @@ IMAGINE_API int imagine_load_netpbm(imagine *img, unsigned char *buffer, unsigne
   }
 
   maxval = 1;
-
   if (fmt != '1' && fmt != '4')
   {
     p = imagine_ppm_parse_uint(p, end, &maxval);
-
     if (maxval == 0)
-    {
       return 0;
-    }
   }
 
   img->width = w;
@@ -138,158 +134,315 @@ IMAGINE_API int imagine_load_netpbm(imagine *img, unsigned char *buffer, unsigne
 
   n = w * h;
 
-  if (fmt == '3')
+  /* ASCII P1 (bitmap 0/1) */
+  if (fmt == '1')
   {
     for (i = 0; i < n; ++i)
     {
-      unsigned int r, g, b;
-
-      p = imagine_ppm_parse_uint(p, end, &r);
-      p = imagine_ppm_parse_uint(p, end, &g);
-      p = imagine_ppm_parse_uint(p, end, &b);
-
-      img->pixels[i * 3 + 0] = (unsigned char)(255 * r / maxval);
-      img->pixels[i * 3 + 1] = (unsigned char)(255 * g / maxval);
-      img->pixels[i * 3 + 2] = (unsigned char)(255 * b / maxval);
+      unsigned int bit;
+      p = imagine_ppm_parse_uint(p, end, &bit);
+      img->pixels[i] = (unsigned char)(bit ? 0 : 255);
     }
   }
-  else if (fmt == '6')
+  /* Binary P4 (bitmap packed bits) */
+  else if (fmt == '4')
   {
-    for (i = 0; i < n; ++i)
+    unsigned int x, y;
+    unsigned int rowbytes = (w + 7) / 8;
+    p = imagine_ppm_skip(p, end); /* move to pixel data */
+
+    if ((unsigned int)(end - p) < rowbytes * h)
+      return 0; /* not enough data */
+
+    for (y = 0; y < h; ++y)
     {
-      if (p + 3 > end)
+      unsigned char *row = p + y * rowbytes;
+      for (x = 0; x < w; ++x)
       {
-        return 0;
+        unsigned int byte = row[x >> 3];
+        unsigned int bit = (byte >> (7 - (x & 7))) & 1;
+        img->pixels[y * w + x] = (unsigned char)(bit ? 0 : 255);
       }
-
-      img->pixels[i * 3 + 0] = p[0];
-      img->pixels[i * 3 + 1] = p[1];
-      img->pixels[i * 3 + 2] = p[2];
-
-      p += 3;
     }
   }
+  /* ASCII grayscale P2 */
   else if (fmt == '2')
   {
     for (i = 0; i < n; ++i)
     {
       unsigned int v;
-
       p = imagine_ppm_parse_uint(p, end, &v);
-
-      img->pixels[i] = (unsigned char)(255 * v / maxval);
+      img->pixels[i] = (unsigned char)((255U * v) / maxval);
     }
   }
+  /* Binary grayscale P5 */
   else if (fmt == '5')
   {
+    unsigned int v;
     p = imagine_ppm_skip(p, end);
-
     for (i = 0; i < n; ++i)
     {
       if (p >= end)
-      {
         return 0;
-      }
-
-      img->pixels[i] = *p++;
+      v = *p++;
+      img->pixels[i] = (unsigned char)((255U * v) / maxval);
     }
+  }
+  /* ASCII RGB P3 */
+  else if (fmt == '3')
+  {
+    for (i = 0; i < n; ++i)
+    {
+      unsigned int r, g, b;
+      p = imagine_ppm_parse_uint(p, end, &r);
+      p = imagine_ppm_parse_uint(p, end, &g);
+      p = imagine_ppm_parse_uint(p, end, &b);
+      img->pixels[i * 3 + 0] = (unsigned char)((255U * r) / maxval);
+      img->pixels[i * 3 + 1] = (unsigned char)((255U * g) / maxval);
+      img->pixels[i * 3 + 2] = (unsigned char)((255U * b) / maxval);
+    }
+  }
+  /* Binary RGB P6 */
+  else if (fmt == '6')
+  {
+    p = imagine_ppm_skip(p, end);
+    for (i = 0; i < n; ++i)
+    {
+      if (p + 3 > end)
+        return 0;
+      img->pixels[i * 3 + 0] = (unsigned char)((255U * p[0]) / maxval);
+      img->pixels[i * 3 + 1] = (unsigned char)((255U * p[1]) / maxval);
+      img->pixels[i * 3 + 2] = (unsigned char)((255U * p[2]) / maxval);
+      p += 3;
+    }
+  }
+  /* PAM P7 (partial: only RGB/GRAYSCALE with DEPTH 1/3/4) */
+  else if (fmt == '7')
+  {
+    /* Not fully implemented: header parsing required */
+    return 0;
   }
   else
   {
-    return 0; /* not implemented P1/P4/P7 */
+    return 0;
   }
 
   return 1;
 }
 
 /* ########################################################################## */
-/* BMP LOADER (24-bit, 8-bit grayscale) */
+/* BMP LOADER (1,4,8,16,24,32-bit, BI_RGB only)                               */
 /* ########################################################################## */
 IMAGINE_API int imagine_load_bmp(imagine *img, unsigned char *buffer, unsigned int size)
 {
-  unsigned int data_offset, header_size, w, h, bpp;
-  unsigned char *src;
-  unsigned char *dst;
-  unsigned int row_bytes, x, y;
-  int topdown;
+  unsigned int bfOffBits, width, height, planes, bitCount, compression;
+  unsigned int clrUsed;
+  unsigned char *p, *end, *dst;
+  unsigned int x, y, rowSize;
+  unsigned int paletteEntries, b, g, r, a;
+  unsigned char *palette;
 
   if (size < 54 || buffer[0] != 'B' || buffer[1] != 'M')
   {
     return 0;
   }
 
-  data_offset = imagine_read32(buffer + 10);
-  header_size = imagine_read32(buffer + 14);
+  bfOffBits = imagine_read32(buffer + 10);
+  width = imagine_read32(buffer + 18);
+  height = imagine_read32(buffer + 22);
+  planes = imagine_read16(buffer + 26);
+  bitCount = imagine_read16(buffer + 28);
+  compression = imagine_read32(buffer + 30);
+  clrUsed = imagine_read32(buffer + 46);
 
-  if (header_size < 40)
+  if (planes != 1 || compression != 0 || width == 0 || height == 0)
   {
     return 0;
   }
 
-  w = imagine_read32(buffer + 18);
-  h = imagine_read32(buffer + 22);
-  bpp = imagine_read16(buffer + 28);
+  p = buffer + bfOffBits;
+  end = buffer + size;
 
-  if (w == 0 || h == 0)
+  /* Determine palette size */
+  paletteEntries = 0;
+
+  if (bitCount <= 8)
   {
-    return 0;
+    paletteEntries = clrUsed;
+
+    if (paletteEntries == 0)
+    {
+      paletteEntries = 1U << bitCount;
+    }
+
+    if (size < 54 + paletteEntries * 4)
+    {
+      return 0;
+    }
+
+    palette = buffer + 54;
+  }
+  else
+  {
+    palette = 0;
   }
 
-  topdown = ((int)h < 0);
-
-  if (topdown)
-  {
-    h = (unsigned int)(-(int)h);
-  }
-
-  if (bpp == 24)
+  /* Choose stride and format */
+  if (bitCount == 1 || bitCount == 4 || bitCount == 8)
   {
     img->stride = 3;
     img->monochrome = 0;
   }
-  else if (bpp == 8)
+  else if (bitCount == 16)
   {
-    img->stride = 1;
-    img->monochrome = 1;
+    img->stride = 3;
+    img->monochrome = 0;
+  }
+  else if (bitCount == 24)
+  {
+    img->stride = 3;
+    img->monochrome = 0;
+  }
+  else if (bitCount == 32)
+  {
+    img->stride = 4;
+    img->monochrome = 0;
   }
   else
   {
     return 0;
   }
 
-  img->width = w;
-  img->height = h;
-  img->pixels_size = w * h * img->stride;
+  img->width = width;
+  img->height = height;
+  img->pixels_size = width * height * img->stride;
 
   if (img->pixels_capacity < img->pixels_size)
   {
     return 0;
   }
 
-  src = buffer + data_offset;
   dst = img->pixels;
-  row_bytes = ((w * bpp + 31) / 32) * 4;
 
-  for (y = 0; y < h; y++)
+  /* Row size in file (padded to 4 bytes) */
+  rowSize = ((width * bitCount + 31) / 32) * 4;
+
+  /* BMP stores bottom-up */
+  for (y = 0; y < height; y++)
   {
-    unsigned int row = (topdown ? y : (h - 1 - y));
-    unsigned char *rowptr = src + row * row_bytes;
+    unsigned char *row = p + (height - 1 - y) * rowSize;
 
-    for (x = 0; x < w; x++)
+    if (row + rowSize > end)
     {
-      if (bpp == 24)
-      {
-        unsigned char b = rowptr[x * 3 + 0];
-        unsigned char g = rowptr[x * 3 + 1];
-        unsigned char r = rowptr[x * 3 + 2];
+      return 0;
+    }
 
-        dst[(y * w + x) * 3 + 0] = r;
-        dst[(y * w + x) * 3 + 1] = g;
-        dst[(y * w + x) * 3 + 2] = b;
-      }
-      else if (bpp == 8)
+    if (bitCount == 1)
+    {
+      for (x = 0; x < width; x++)
       {
-        dst[y * w + x] = rowptr[x];
+        unsigned int byteIndex = x >> 3;
+        unsigned int bitIndex = 7 - (x & 7);
+        unsigned char idx = (row[byteIndex] >> bitIndex) & 1;
+
+        b = palette[idx * 4 + 0];
+        g = palette[idx * 4 + 1];
+        r = palette[idx * 4 + 2];
+
+        *dst++ = (unsigned char)r;
+        *dst++ = (unsigned char)g;
+        *dst++ = (unsigned char)b;
+      }
+    }
+    else if (bitCount == 4)
+    {
+      for (x = 0; x < width; x++)
+      {
+        unsigned int byteIndex = x >> 1;
+        unsigned char idx;
+
+        if ((x & 1) == 0)
+        {
+          idx = (row[byteIndex] >> 4) & 0xF;
+        }
+        else
+        {
+          idx = row[byteIndex] & 0xF;
+        }
+
+        b = palette[idx * 4 + 0];
+        g = palette[idx * 4 + 1];
+        r = palette[idx * 4 + 2];
+
+        *dst++ = (unsigned char)r;
+        *dst++ = (unsigned char)g;
+        *dst++ = (unsigned char)b;
+      }
+    }
+    else if (bitCount == 8)
+    {
+      for (x = 0; x < width; x++)
+      {
+        unsigned char idx = row[x];
+
+        if (idx >= paletteEntries)
+        {
+          idx = 0;
+        }
+
+        b = palette[idx * 4 + 0];
+        g = palette[idx * 4 + 1];
+        r = palette[idx * 4 + 2];
+
+        *dst++ = (unsigned char)r;
+        *dst++ = (unsigned char)g;
+        *dst++ = (unsigned char)b;
+      }
+    }
+    else if (bitCount == 16)
+    {
+      for (x = 0; x < width; x++)
+      {
+        unsigned short px = row[x * 2] | (row[x * 2 + 1] << 8);
+
+        r = (px >> 10) & 0x1F;
+        g = (px >> 5) & 0x1F;
+        b = (px >> 0) & 0x1F;
+        r = (r * 255) / 31;
+        g = (g * 255) / 31;
+        b = (b * 255) / 31;
+
+        *dst++ = (unsigned char)r;
+        *dst++ = (unsigned char)g;
+        *dst++ = (unsigned char)b;
+      }
+    }
+    else if (bitCount == 24)
+    {
+      for (x = 0; x < width; x++)
+      {
+        b = row[x * 3 + 0];
+        g = row[x * 3 + 1];
+        r = row[x * 3 + 2];
+
+        *dst++ = (unsigned char)r;
+        *dst++ = (unsigned char)g;
+        *dst++ = (unsigned char)b;
+      }
+    }
+    else if (bitCount == 32)
+    {
+      for (x = 0; x < width; x++)
+      {
+        b = row[x * 4 + 0];
+        g = row[x * 4 + 1];
+        r = row[x * 4 + 2];
+        a = row[x * 4 + 3];
+
+        *dst++ = (unsigned char)r;
+        *dst++ = (unsigned char)g;
+        *dst++ = (unsigned char)b;
+        *dst++ = (unsigned char)a; /* keep alpha */
       }
     }
   }
@@ -394,7 +547,7 @@ IMAGINE_API int imagine_load_tga(imagine *img, unsigned char *buffer, unsigned i
       }
     }
   }
-  
+
   return 1;
 }
 
